@@ -410,7 +410,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         )
 
     # ── Session ───────────────────────────────────────────────────────────────
-    session = session_store.get_or_create(req.session_id, dsn_hash)
+    session = await session_store.get_or_create(req.session_id, dsn_hash, pool=pool)
 
     # ── Build per-turn deps ───────────────────────────────────────────────────
     deps = AgentDeps(
@@ -438,7 +438,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         )
 
     # ── Persist new messages ──────────────────────────────────────────────────
-    session_store.append_messages(req.session_id, result.new_messages())
+    await session_store.append_messages(req.session_id, result.new_messages(), pool=pool, queries_used=deps.queries_executed)
 
     answer: str = getattr(result, "output", None) or getattr(result, "data", "")
     queries = [
@@ -468,7 +468,9 @@ async def reset_session(session_id: str) -> ResetResponse:
     Clear the message history for a session so the next chat turn starts fresh.
     The session itself is retained; only the conversation is cleared.
     """
-    existed = session_store.reset(session_id)
+    dsn = DEFAULT_AGENT_DSN or DEFAULT_ONBOARD_DSN
+    pool = await _get_agent_pool(dsn) if dsn else None
+    existed = await session_store.reset(session_id, pool=pool)
     return ResetResponse(
         session_id=session_id,
         existed=existed,
@@ -483,7 +485,9 @@ async def reset_session(session_id: str) -> ResetResponse:
 )
 async def delete_session(session_id: str) -> dict[str, Any]:
     """Delete a session and all its message history."""
-    deleted = session_store.delete(session_id)
+    dsn = DEFAULT_AGENT_DSN or DEFAULT_ONBOARD_DSN
+    pool = await _get_agent_pool(dsn) if dsn else None
+    deleted = await session_store.delete(session_id, pool=pool)
     return {"deleted": deleted, "session_id": session_id}
 
 
@@ -495,7 +499,9 @@ async def delete_session(session_id: str) -> dict[str, Any]:
 )
 async def list_sessions() -> list[SessionSummary]:
     """Return a summary of all in-memory sessions."""
-    return [SessionSummary(**s) for s in session_store.list_all()]
+    dsn = DEFAULT_AGENT_DSN or DEFAULT_ONBOARD_DSN
+    pool = await _get_agent_pool(dsn) if dsn else None
+    return [SessionSummary(**s) for s in await session_store.list_all(pool=pool)]
 
 
 # ─── Schema management ────────────────────────────────────────────────────────
