@@ -1,0 +1,51 @@
+services:
+
+  # ─── FHI RCA Agent (FastAPI backend) ─────────────────────────────────────────
+  fhi-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Build-time target — override with --target builder for debugging
+    image: fhi-rca-agent:latest
+    container_name: fhi-agent
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"
+
+    # Mount the .env file at runtime so secrets stay out of the image.
+    # Copy .env.example → .env and fill in your values before running.
+    env_file:
+      - .env
+
+    environment:
+      # Override PROFILES_DIR to the volume mount path inside the container
+      PROFILES_DIR: /app/schema_profiles
+
+    volumes:
+      # Persist schema profiles across container restarts
+      - schema_profiles:/app/schema_profiles
+
+    # Health check matches the one baked into the image
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+    # Give the agent access to host Postgres when DATABASE is on the host machine.
+    # Remove this section if your Postgres runs in a separate Docker container/network.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  schema_profiles:
+    driver: local

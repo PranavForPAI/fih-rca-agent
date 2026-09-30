@@ -16,7 +16,7 @@ build/
 
 # ─── uv / venv ────────────────────────────────────────────────────────────────
 .venv/
-uv.lock
+# uv.lock is intentionally tracked so Docker can use --frozen builds
 
 # ─── Schema profiles (contain DB metadata, may include sensitive table names) ─
 schema_profiles/

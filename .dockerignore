@@ -1,0 +1,45 @@
+# Python artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+
+# uv cache (not needed inside image; deps are baked in)
+.uv/
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets / credentials — never bake into the image
+.env
+*.env.local
+
+# Git
+.git/
+.gitignore
+
+# Frontend (built separately, not part of the backend image)
+frontend/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Docs
+README.md
+*.md
