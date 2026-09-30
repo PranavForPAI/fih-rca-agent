@@ -242,6 +242,79 @@ class SessionStore:
             for s in self._sessions.values()
         ]
 
+    async def get_ui_messages(
+        self, session_id: str, pool: asyncpg.Pool | None = None
+    ) -> list[dict[str, Any]]:
+        """Return UI messages (with role, parts, and queries breakdown) for frontend rendering."""
+        ui_msgs: list[dict[str, Any]] = []
+
+        if pool is not None:
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(
+                        f"""
+                        SELECT id, queries_used, raw_payload
+                        FROM {self.chat_schema}.chat_messages
+                        WHERE session_id = $1
+                        ORDER BY id ASC;
+                        """,
+                        session_id,
+                    )
+                    for r in rows:
+                        rid = r["id"]
+                        raw = r["raw_payload"]
+                        payload = json.loads(raw) if isinstance(raw, str) else (raw or [])
+                        queries = r["queries_used"]
+                        if isinstance(queries, str):
+                            try:
+                                queries = json.loads(queries)
+                            except Exception:
+                                queries = []
+
+                        user_text = ""
+                        asst_text = ""
+                        for item in payload:
+                            if item.get("kind") == "request":
+                                for p in item.get("parts", []):
+                                    if p.get("part_kind") == "user-prompt":
+                                        content = p.get("content", "")
+                                        if isinstance(content, str):
+                                            user_text = content
+                            elif item.get("kind") == "response":
+                                for p in item.get("parts", []):
+                                    if p.get("part_kind") == "text":
+                                        content = p.get("content", "")
+                                        if isinstance(content, str):
+                                            asst_text = content
+
+                        if user_text:
+                            ui_msgs.append({
+                                "id": f"msg-u-{rid}",
+                                "role": "user",
+                                "parts": [{"type": "text", "text": user_text}],
+                            })
+                        if asst_text:
+                            full_text = asst_text
+                            if queries and len(queries) > 0:
+                                q_list = "\n\n".join([
+                                    f"**Query {i+1}** ({q.get('row_count', 0)} rows):\n```sql\n{q.get('sql', '')}\n```"
+                                    for i, q in enumerate(queries)
+                                ])
+                                full_text += f"\n\n<details>\n<summary>🔍 <b>Queries Executed ({len(queries)})</b></summary>\n\n{q_list}\n</details>"
+                            ui_msgs.append({
+                                "id": f"msg-a-{rid}",
+                                "role": "assistant",
+                                "parts": [{"type": "text", "text": full_text}],
+                            })
+            except Exception as exc:
+                logger.warning(
+                    "[session=%s] Failed fetching ui_messages from postgres: %s",
+                    session_id,
+                    exc,
+                )
+
+        return ui_msgs
+
     def __len__(self) -> int:
         return len(self._sessions)
 

@@ -1,15 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
-  BarChart3,
   Bot,
   Boxes,
   LayoutDashboard,
+  LogOut,
   MapPin,
   Menu,
+  ShieldCheck,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,7 @@ const navItems = [
   {
     label: "AI investigation",
     icon: Bot,
-    to: "/investigations/lumber-decking-performance",
+    to: "/investigations/new",
     hash: undefined,
   },
 ];
@@ -46,6 +47,31 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
   );
 }
 
+async function logout() {
+  await fetch("/api/logout", { method: "POST", credentials: "include" });
+  sessionStorage.removeItem("fhi_auth_user");
+  window.location.href = "/";
+}
+
+async function fetchUsername(): Promise<string> {
+  try {
+    const res = await fetch("/api/me", { credentials: "include" });
+    if (!res.ok) return "User";
+    const data = await res.json();
+    return (data as { username?: string }).username ?? "User";
+  } catch {
+    return "User";
+  }
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/[\s_-]/)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .slice(0, 2)
+    .join("");
+}
+
 export function AppShell({
   children,
   active,
@@ -54,6 +80,14 @@ export function AppShell({
   active: "overview" | "investigation";
 }) {
   const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState<string>("");
+
+  useEffect(() => {
+    fetchUsername().then(setUsername);
+  }, []);
+
+  const initials = username ? getInitials(username) : "…";
+
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground lg:flex-row">
       <header className="z-40 flex h-16 shrink-0 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur-xl lg:hidden">
@@ -100,19 +134,35 @@ export function AppShell({
             );
           })}
         </nav>
-        <div className="mt-auto border-t border-sidebar-border pt-4">
+
+        {/* User section */}
+        <div className="mt-auto space-y-2 border-t border-sidebar-border pt-4">
+          {/* User card */}
           <div className="flex items-center gap-3 rounded-[8px] bg-sidebar-accent p-3">
-            <div className="grid size-8 place-items-center rounded-full bg-sun font-display text-xs font-black text-sun-foreground">
-              DO
+            <div className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-xs font-black text-primary-foreground">
+              {initials}
             </div>
-            <div>
-              <p className="text-sm font-bold text-sidebar-foreground">Dana Okafor</p>
-              <p className="text-[11px] text-sidebar-muted">Regional Ops Lead</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-sidebar-foreground capitalize">
+                {username || "Loading…"}
+              </p>
+              <div className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-sidebar-muted">
+                <ShieldCheck className="size-3 text-mint" />
+                Administrator
+              </div>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase text-sidebar-muted">
-            <BarChart3 className="size-3" /> Synthetic demonstration
-          </div>
+
+          {/* Prominent logout button */}
+          <button
+            type="button"
+            id="logout-btn"
+            onClick={() => void logout()}
+            className="flex w-full items-center justify-center gap-2 rounded-[8px] border border-accent/30 bg-accent/10 px-3 py-2 text-xs font-bold text-accent transition-all hover:bg-accent/20 hover:border-accent/60 active:scale-[0.98]"
+          >
+            <LogOut className="size-3.5" />
+            Sign out
+          </button>
         </div>
       </aside>
       <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>

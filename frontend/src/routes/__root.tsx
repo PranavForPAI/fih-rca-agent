@@ -8,6 +8,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { LoginPage } from "../components/fhi/LoginPage";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -119,6 +121,28 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { state, onLogin, logout } = useAuth();
+
+  if (state === "loading") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="grid size-12 place-items-center rounded-[12px] bg-accent font-display text-xs font-black text-accent-foreground shadow-[0_0_32px_var(--accent-glow)]">
+            FIH
+          </div>
+          <div className="flex gap-1.5">
+            <span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
+            <span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
+            <span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === "unauthed") {
+    return <LoginPage onSuccess={onLogin} />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

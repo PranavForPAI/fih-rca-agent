@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiLoginRouteImport } from './routes/api/login'
+import { Route as ApiLogoutRouteImport } from './routes/api/logout'
+import { Route as ApiMeRouteImport } from './routes/api/me'
 import { Route as InvestigationsThreadIdRouteImport } from './routes/investigations/$threadId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +26,21 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoginRoute = ApiLoginRouteImport.update({
+  id: '/api/login',
+  path: '/api/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogoutRoute = ApiLogoutRouteImport.update({
+  id: '/api/logout',
+  path: '/api/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMeRoute = ApiMeRouteImport.update({
+  id: '/api/me',
+  path: '/api/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InvestigationsThreadIdRoute = InvestigationsThreadIdRouteImport.update({
   id: '/investigations/$threadId',
   path: '/investigations/$threadId',
@@ -32,30 +50,61 @@ const InvestigationsThreadIdRoute = InvestigationsThreadIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/me': typeof ApiMeRoute
   '/investigations/$threadId': typeof InvestigationsThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/me': typeof ApiMeRoute
   '/investigations/$threadId': typeof InvestigationsThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/me': typeof ApiMeRoute
   '/investigations/$threadId': typeof InvestigationsThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/investigations/$threadId'
+  fullPaths:
+    | '/'
+    | '/api/chat'
+    | '/api/login'
+    | '/api/logout'
+    | '/api/me'
+    | '/investigations/$threadId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/investigations/$threadId'
-  id: '__root__' | '/' | '/api/chat' | '/investigations/$threadId'
+  to:
+    | '/'
+    | '/api/chat'
+    | '/api/login'
+    | '/api/logout'
+    | '/api/me'
+    | '/investigations/$threadId'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/chat'
+    | '/api/login'
+    | '/api/logout'
+    | '/api/me'
+    | '/investigations/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiLoginRoute: typeof ApiLoginRoute
+  ApiLogoutRoute: typeof ApiLogoutRoute
+  ApiMeRoute: typeof ApiMeRoute
   InvestigationsThreadIdRoute: typeof InvestigationsThreadIdRoute
 }
 
@@ -75,6 +124,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/login': {
+      id: '/api/login'
+      path: '/api/login'
+      fullPath: '/api/login'
+      preLoaderRoute: typeof ApiLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logout': {
+      id: '/api/logout'
+      path: '/api/logout'
+      fullPath: '/api/logout'
+      preLoaderRoute: typeof ApiLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/me': {
+      id: '/api/me'
+      path: '/api/me'
+      fullPath: '/api/me'
+      preLoaderRoute: typeof ApiMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/investigations/$threadId': {
       id: '/investigations/$threadId'
       path: '/investigations/$threadId'
@@ -88,6 +158,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiLoginRoute: ApiLoginRoute,
+  ApiLogoutRoute: ApiLogoutRoute,
+  ApiMeRoute: ApiMeRoute,
   InvestigationsThreadIdRoute: InvestigationsThreadIdRoute,
 }
 export const routeTree = rootRouteImport

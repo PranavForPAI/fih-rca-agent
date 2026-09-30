@@ -12,4 +12,16 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  vite: {
+    server: {
+      proxy: {
+        // Forward /api/bot/* → FastAPI backend (strips the /api/bot prefix)
+        "/api/bot": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api\/bot/, ""),
+        },
+      },
+    },
+  },
 });

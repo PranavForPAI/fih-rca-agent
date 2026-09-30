@@ -498,10 +498,27 @@ async def delete_session(session_id: str) -> dict[str, Any]:
     summary="List all active sessions",
 )
 async def list_sessions() -> list[SessionSummary]:
-    """Return a summary of all in-memory sessions."""
+    """Return a summary of all in-memory / persisted sessions."""
     dsn = DEFAULT_AGENT_DSN or DEFAULT_ONBOARD_DSN
     pool = await _get_agent_pool(dsn) if dsn else None
     return [SessionSummary(**s) for s in await session_store.list_all(pool=pool)]
+
+
+@app.get(
+    "/sessions/{session_id}/messages",
+    tags=["Sessions"],
+    summary="Get UI messages for a session from database history",
+)
+async def get_session_messages(session_id: str) -> dict[str, Any]:
+    """Return historical messages formatted for UI rendering from database."""
+    dsn = DEFAULT_AGENT_DSN or DEFAULT_ONBOARD_DSN
+    pool = await _get_agent_pool(dsn) if dsn else None
+    msgs = await session_store.get_ui_messages(session_id, pool=pool)
+    return {
+        "session_id": session_id,
+        "messages": msgs,
+        "count": len(msgs),
+    }
 
 
 # ─── Schema management ────────────────────────────────────────────────────────
