@@ -1,0 +1,32 @@
+# ─── Environment ──────────────────────────────────────────────────────────────
+.env
+*.env.local
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── uv / venv ────────────────────────────────────────────────────────────────
+.venv/
+uv.lock
+
+# ─── Schema profiles (contain DB metadata, may include sensitive table names) ─
+schema_profiles/
+*.schema_profile.json
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
