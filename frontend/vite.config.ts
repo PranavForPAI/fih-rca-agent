@@ -15,11 +15,11 @@ export default defineConfig({
   vite: {
     server: {
       proxy: {
-        // Forward /api/bot/* → FastAPI backend (strips the /api/bot prefix)
-        "/api/bot": {
+        // Forward /backend/* → FastAPI backend (strips the /backend prefix)
+        "/backend": {
           target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/api\/bot/, ""),
+          rewrite: (path: string) => path.replace(/^\/backend/, ""),
         },
       },
     },

@@ -10,6 +10,17 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Conversation,
@@ -24,15 +35,11 @@ import {
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
-import {
-  type InvestigationThread,
-  readThreads,
-  writeThreads,
-} from "@/lib/investigations";
+import { type InvestigationThread, readThreads, writeThreads } from "@/lib/investigations";
 import { cn } from "@/lib/utils";
 
 /** The backend URL prefix (proxied through the SSR server in dev) */
-const FHI_BOT_URL = "/api/bot";
+const FHI_BOT_URL = "/backend";
 
 /** Fetch the DB-stored message history for a session. */
 async function fetchDbMessages(sessionId: string): Promise<UIMessage[]> {
@@ -53,6 +60,228 @@ function textFromMessage(message: UIMessage) {
     .filter((part) => part.type === "text")
     .map((part) => part.text)
     .join("");
+}
+
+type TableSeries = { key: string; label: string };
+type ParsedMarkdownTable = {
+  label: string;
+  categoryKey: string;
+  rows: Array<Record<string, string | number>>;
+  series: TableSeries[];
+  unit: "currency" | "percent" | "number";
+  timeSeries: boolean;
+};
+
+function splitTableCells(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) =>
+      cell
+        .trim()
+        .replace(/\\\|/g, "|")
+        .replace(/<[^>]*>/g, ""),
+    );
+}
+
+function parseTableNumber(value: string): number | null {
+  const cleaned = value
+    .trim()
+    .replace(/^\((.*)\)$/, "-$1")
+    .replace(/[^\d.+-]/g, "");
+  if (!cleaned) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseMarkdownTables(text: string): ParsedMarkdownTable[] {
+  const lines = text.split("\n");
+  const tables: ParsedMarkdownTable[] = [];
+
+  for (let index = 0; index < lines.length - 2 && tables.length < 2; index += 1) {
+    if (!lines[index]?.includes("|")) continue;
+    const headers = splitTableCells(lines[index]!);
+    const divider = splitTableCells(lines[index + 1]!);
+    if (
+      headers.length < 2 ||
+      divider.length !== headers.length ||
+      !divider.every((cell) => /^:?-{3,}:?$/.test(cell))
+    ) {
+      continue;
+    }
+
+    const values: string[][] = [];
+    let rowIndex = index + 2;
+    while (rowIndex < lines.length && lines[rowIndex]?.includes("|")) {
+      const row = splitTableCells(lines[rowIndex]!);
+      if (row.length !== headers.length) break;
+      values.push(row);
+      rowIndex += 1;
+    }
+    index = rowIndex - 1;
+    if (values.length < 2) continue;
+
+    const numericColumns = headers.slice(1).flatMap((header, offset) => {
+      const columnIndex = offset + 1;
+      const parsedValues = values.map((row) => parseTableNumber(row[columnIndex] ?? ""));
+      if (parsedValues.filter((value) => value !== null).length < 2) return [];
+      if (parsedValues.filter((value) => value !== null).length !== values.length) return [];
+      return [{ header, columnIndex, parsedValues: parsedValues as number[] }];
+    });
+    if (numericColumns.length === 0) continue;
+
+    const unitFor = (header: string): ParsedMarkdownTable["unit"] => {
+      if (/%|percent/i.test(header)) return "percent";
+      if (/[$€£]|\b(currency|revenue|sales|amount|target|actual|variance)\b/i.test(header)) {
+        return "currency";
+      }
+      return "number";
+    };
+    const unitCounts = new Map<ParsedMarkdownTable["unit"], number>();
+    for (const column of numericColumns) {
+      const unit = unitFor(column.header);
+      unitCounts.set(unit, (unitCounts.get(unit) ?? 0) + 1);
+    }
+    const unit = (["currency", "number", "percent"] as const).find(
+      (candidate) => unitCounts.get(candidate) === Math.max(...unitCounts.values()),
+    )!;
+    const selectedColumns = numericColumns
+      .filter((column) => unitFor(column.header) === unit)
+      .slice(0, 4);
+    const categoryKey = "category";
+    const series = selectedColumns.map((column, selectedIndex) => ({
+      key: `series_${selectedIndex}`,
+      label: column.header,
+    }));
+    const chartRows = values.map((row, rowIndex) => {
+      const chartRow: Record<string, string | number> = {
+        [categoryKey]: row[0] ?? "",
+      };
+      selectedColumns.forEach((column, selectedIndex) => {
+        chartRow[`series_${selectedIndex}`] = column.parsedValues[rowIndex]!;
+      });
+      return chartRow;
+    });
+    const labels = values.map((row) => row[0] ?? "");
+
+    tables.push({
+      label: selectedColumns.map((column) => column.header).join(" / "),
+      categoryKey,
+      rows: chartRows,
+      series,
+      unit,
+      timeSeries: labels.every((label) =>
+        /(?:\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}\b|\b\d{4}[-/]\d{1,2}\b)/i.test(
+          label,
+        ),
+      ),
+    });
+  }
+
+  return tables;
+}
+
+function MarkdownTableCharts({ text }: { text: string }) {
+  const tables = parseMarkdownTables(text);
+  if (tables.length === 0) return null;
+
+  return (
+    <div className="mt-4 grid gap-5">
+      {tables.map((table, tableIndex) => (
+        <section
+          key={`${table.label}-${tableIndex}`}
+          aria-label={`Chart: ${table.label}`}
+          className="border-t border-border/70 pt-3"
+        >
+          <p className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">
+            {table.timeSeries ? "Trend" : "Comparison"} · {table.label}
+          </p>
+          <div className="h-56 min-w-0 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={table.rows} margin={{ top: 8, right: 12, bottom: 2, left: 0 }}>
+                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey={table.categoryKey}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                  minTickGap={18}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  width={64}
+                  tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                  tickFormatter={(value: number) =>
+                    table.unit === "currency"
+                      ? new Intl.NumberFormat("en-US", {
+                          notation: "compact",
+                          maximumFractionDigits: 1,
+                        }).format(value)
+                      : table.unit === "percent"
+                        ? `${value}%`
+                        : new Intl.NumberFormat("en-US", { notation: "compact" }).format(value)
+                  }
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--popover)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "6px",
+                    color: "var(--popover-foreground)",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value) =>
+                    typeof value === "number" && table.unit === "currency"
+                      ? new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          maximumFractionDigits: 2,
+                        }).format(value)
+                      : typeof value === "number" && table.unit === "percent"
+                        ? `${value}%`
+                        : value
+                  }
+                />
+                {table.series.length > 1 && <Legend />}
+                {table.series.map((series, seriesIndex) => {
+                  const color = [
+                    "var(--chart-2)",
+                    "var(--accent)",
+                    "var(--azure)",
+                    "var(--chart-5)",
+                  ][seriesIndex % 4];
+                  return table.timeSeries ? (
+                    <Line
+                      key={series.key}
+                      type="monotone"
+                      dataKey={series.key}
+                      name={series.label}
+                      stroke={color}
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: color, strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  ) : (
+                    <Bar
+                      key={series.key}
+                      dataKey={series.key}
+                      name={series.label}
+                      fill={color}
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={42}
+                    />
+                  );
+                })}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 // ─── Typing dots loader ────────────────────────────────────────────────────────
@@ -296,7 +525,10 @@ function ChatPanel({
               >
                 {message.parts.map((part, index) =>
                   part.type === "text" ? (
-                    <MessageResponse key={`${message.id}-${index}`}>{part.text}</MessageResponse>
+                    <div key={`${message.id}-${index}`} className="min-w-0">
+                      <MessageResponse>{part.text}</MessageResponse>
+                      {message.role === "assistant" && <MarkdownTableCharts text={part.text} />}
+                    </div>
                   ) : null,
                 )}
               </MessageContent>
@@ -375,8 +607,7 @@ export function InvestigationWorkspace({ threadId }: { threadId: string }) {
       "ukiah-building-materials",
       "contractor-cohort-shift",
     ]);
-    const isSeedOnly =
-      saved.length > 0 && saved.every((t) => SEED_IDS.has(t.id));
+    const isSeedOnly = saved.length > 0 && saved.every((t) => SEED_IDS.has(t.id));
     setThreads(isSeedOnly ? [] : saved);
     setReady(true);
   }, []);
@@ -482,8 +713,8 @@ export function InvestigationWorkspace({ threadId }: { threadId: string }) {
                 <div>
                   <p className="font-display text-lg font-black">Ready to investigate</p>
                   <p className="mt-2 max-w-sm text-sm text-muted-foreground leading-5">
-                    Create a new investigation from the sidebar to start asking questions about
-                    your data.
+                    Create a new investigation from the sidebar to start asking questions about your
+                    data.
                   </p>
                 </div>
                 <Button onClick={createThread} className="bg-primary text-primary-foreground">
